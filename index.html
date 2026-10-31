@@ -64,6 +64,12 @@ button{cursor:pointer}
 .item.sel{background:var(--painel2);border-color:var(--ouro)}
 .logo{width:52px;height:52px;border-radius:12px;flex:none;display:grid;place-items:center;font-family:Cinzel,serif;font-weight:700;font-size:18px;color:#0F1B33;background:var(--ouro);overflow:hidden}
 .logo img{width:100%;height:100%;object-fit:cover}
+.logo.com-img{background:#fff}
+.caixa-logo{display:flex;align-items:center;gap:14px;border:2px dashed var(--linha);border-radius:14px;padding:14px;background:var(--painel2);cursor:pointer;transition:border-color .15s,background .15s}
+.caixa-logo:hover,.caixa-logo.arrastando{border-color:var(--ouro);background:rgba(201,162,39,.10)}
+.caixa-logo .logo{width:72px;height:72px;font-size:22px}
+.caixa-logo .txt{font-size:17px;line-height:1.3;color:var(--suave)}
+.caixa-logo .txt b{color:var(--texto)}
 .item .nome{font-weight:700;font-size:20px;line-height:1.1}
 .item .sub{color:var(--suave);font-size:16px}
 .estrela{margin-left:auto;color:var(--ouro);font-size:18px}
@@ -154,7 +160,7 @@ a.bt{text-decoration:none;display:inline-block}
 /* ============================================================
    VIDAS TV
    ============================================================ */
-const VERSAO = '1.0.0';
+const VERSAO = '1.1.0';
 const SUPABASE_URL = 'https://ghjbljypxksubmcsvaig.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_qXCYqg1WdmelY9D1mptZXg_U8NdoKby';
 const TABELA = 'tvv_canais';
@@ -180,7 +186,7 @@ try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) 
 
 const est = {
   canais: [], cat: 'todos', sel: null, modo: null,
-  favs: lerLS('tvv_favs', []), usuario: null, dono: false, editando: null
+  favs: lerLS('tvv_favs', []), usuario: null, dono: false, editando: null, logoForm: ''
 };
 
 /* ---------- utilidades ---------- */
@@ -228,7 +234,7 @@ function interpretar(txt){
   return { erro:'Não reconheci esse endereço. Cole o ID do canal (começa com UC) ou o link de um vídeo/live.' };
 }
 function logoHTML(c){
-  if (c.logo_url) return `<div class="logo"><img src="${esc(c.logo_url)}" alt="" loading="lazy" onerror="this.parentNode.textContent='${esc(iniciais(c.nome))}'"></div>`;
+  if (c.logo_url) return `<div class="logo com-img"><img src="${esc(c.logo_url)}" alt="" loading="lazy" onerror="this.parentNode.textContent='${esc(iniciais(c.nome))}'"></div>`;
   if (c.tipo === 'video') return `<div class="logo"><img src="https://i.ytimg.com/vi/${esc(c.youtube_id)}/mqdefault.jpg" alt="" loading="lazy"></div>`;
   return `<div class="logo">${esc(iniciais(c.nome))}</div>`;
 }
@@ -397,7 +403,19 @@ function formularioHTML(c){
       <b>Rádio de louvor 24h:</b> cole o link da própria live (youtube.com/watch?v=...).
     </div>
     <label class="campo"><span>Descrição (opcional)</span><textarea id="fDesc">${esc(c.descricao || '')}</textarea></label>
-    <label class="campo"><span>Endereço de um logotipo (opcional)</span><input id="fLogo" value="${esc(c.logo_url || '')}" placeholder="https://..."></label>
+    <div class="campo"><span>Logotipo (opcional)</span>
+      <div class="caixa-logo" id="caixaLogo" tabindex="0" role="button" aria-label="Escolher logotipo"
+           onclick="document.getElementById('fArquivo').click()"
+           onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}"
+           ondragover="event.preventDefault();this.classList.add('arrastando')"
+           ondragleave="this.classList.remove('arrastando')"
+           ondrop="soltarLogo(event)">
+        <div id="previaLogo">${logoHTML({ ...c, logo_url: est.logoForm, tipo:'canal' })}</div>
+        <div class="txt"><b>Arraste a imagem para cá</b><br>ou toque para escolher um arquivo JPG ou PNG.<br><small>O app ajusta o tamanho sozinho.</small></div>
+      </div>
+      <input type="file" id="fArquivo" accept="image/png,image/jpeg" hidden onchange="lerLogo(this.files[0]);this.value=''">
+      <div class="botoes" style="margin-top:8px" id="btRemoverLogo" ${est.logoForm ? '' : 'hidden'}><button class="bt perigo" type="button" onclick="removerLogo()">Remover logotipo</button></div>
+    </div>
     <label class="campo"><span>Ordem na lista (menor aparece primeiro)</span><input id="fOrdem" type="number" value="${c.ordem ?? 100}"></label>
     <label class="campo" style="display:flex;gap:10px;align-items:center"><input id="fAtivo" type="checkbox" style="width:auto" ${c.ativo !== false ? 'checked' : ''}> Ativo (aparece no app)</label>
     <div class="msg" id="fMsg"></div>
@@ -430,8 +448,43 @@ async function verificarSessao(){
     if (est.dono) await carregarCanais();
   }
 }
-function novoCanal(){ est.editando = { nome:'', categoria: est.cat && !['todos','favoritos'].includes(est.cat) ? est.cat : 'aliancadas', ordem:100, ativo:true }; desenharGaveta(); }
-function editarCanal(id){ est.editando = { ...est.canais.find(c => String(c.id) === String(id)) }; desenharGaveta(); }
+function novoCanal(){ est.logoForm = ''; est.editando = { nome:'', categoria: est.cat && !['todos','favoritos'].includes(est.cat) ? est.cat : 'aliancadas', ordem:100, ativo:true }; desenharGaveta(); }
+function editarCanal(id){ est.editando = { ...est.canais.find(c => String(c.id) === String(id)) }; est.logoForm = est.editando.logo_url || ''; desenharGaveta(); }
+
+/* ---------- logotipo: arrastar ou escolher arquivo ---------- */
+function soltarLogo(e){
+  e.preventDefault();
+  document.getElementById('caixaLogo').classList.remove('arrastando');
+  const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (f) lerLogo(f);
+}
+function lerLogo(f){
+  if (!f) return;
+  if (!/^image\/(png|jpeg)$/.test(f.type)) return msg('fMsg', 'Use uma imagem JPG ou PNG.', 'erro');
+  if (f.size > 15 * 1024 * 1024) return msg('fMsg', 'Imagem grande demais (máximo 15 MB).', 'erro');
+  const url = URL.createObjectURL(f);
+  const img = new Image();
+  img.onload = () => {
+    // recorta no centro em quadrado e reduz para 192×192
+    const T = 192, lado = Math.min(img.naturalWidth, img.naturalHeight);
+    const cv = document.createElement('canvas'); cv.width = cv.height = T;
+    const ctx = cv.getContext('2d');
+    if (f.type === 'image/jpeg') { ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, T, T); }
+    ctx.drawImage(img, (img.naturalWidth - lado) / 2, (img.naturalHeight - lado) / 2, lado, lado, 0, 0, T, T);
+    URL.revokeObjectURL(url);
+    est.logoForm = f.type === 'image/png' ? cv.toDataURL('image/png') : cv.toDataURL('image/jpeg', 0.85);
+    atualizarPreviaLogo();
+    msg('fMsg', 'Logotipo carregado. Clique em Salvar para gravar.', 'ok');
+  };
+  img.onerror = () => { URL.revokeObjectURL(url); msg('fMsg', 'Não consegui ler essa imagem.', 'erro'); };
+  img.src = url;
+}
+function removerLogo(){ est.logoForm = ''; atualizarPreviaLogo(); }
+function atualizarPreviaLogo(){
+  const nome = (document.getElementById('fNome') || {}).value || '';
+  document.getElementById('previaLogo').innerHTML = logoHTML({ nome, logo_url: est.logoForm, tipo:'canal' });
+  document.getElementById('btRemoverLogo').hidden = !est.logoForm;
+}
 
 async function salvarCanal(){
   const nome = document.getElementById('fNome').value.trim();
@@ -443,7 +496,7 @@ async function salvarCanal(){
     categoria: document.getElementById('fCat').value,
     tipo: yt.tipo, youtube_id: yt.id,
     descricao: document.getElementById('fDesc').value.trim(),
-    logo_url: document.getElementById('fLogo').value.trim(),
+    logo_url: est.logoForm || '',
     ordem: parseInt(document.getElementById('fOrdem').value, 10) || 100,
     ativo: document.getElementById('fAtivo').checked
   };
