@@ -160,20 +160,31 @@ a.bt{text-decoration:none;display:inline-block}
 /* ============================================================
    VIDAS TV
    ============================================================ */
-const VERSAO = '1.1.0';
+const VERSAO = '1.2.0';
 const SUPABASE_URL = 'https://ghjbljypxksubmcsvaig.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_qXCYqg1WdmelY9D1mptZXg_U8NdoKby';
 const TABELA = 'tvv_canais';
+const TABELA_CAT = 'tvv_categorias';
 
-const CATEGORIAS = [
-  { id:'todos',      nome:'Todos os canais' },
-  { id:'favoritos',  nome:'Favoritos ★' },
-  { id:'vidas',      nome:'Igreja Vidas' },
-  { id:'tv',         nome:'TV cristã 24h' },
-  { id:'louvor',     nome:'Louvor 24h' },
-  { id:'aliancadas', nome:'Igrejas aliançadas' }
+// "Todos" e "Favoritos" são fixas; as demais vêm do banco e são editáveis no administrativo
+const CAT_FIXAS = [
+  { id:'todos',     nome:'Todos os canais' },
+  { id:'favoritos', nome:'Favoritos ★' }
 ];
-const NOME_CAT = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.nome]));
+// Usadas se o banco ainda não estiver pronto ou sem internet no primeiro acesso
+const CAT_SEMENTE = [
+  { id:'vidas',      nome:'Igreja Vidas',       modo:'gravados', ordem:1 },
+  { id:'tv',         nome:'TV cristã 24h',      modo:'aovivo',   ordem:2 },
+  { id:'louvor',     nome:'Louvor 24h',         modo:'aovivo',   ordem:3 },
+  { id:'aliancadas', nome:'Igrejas aliançadas', modo:'gravados', ordem:4 }
+];
+let CATEGORIAS = [], NOME_CAT = {};
+function montarCategorias(lista){
+  est.categorias = [...lista].sort((a,b) => (a.ordem - b.ordem) || a.nome.localeCompare(b.nome));
+  CATEGORIAS = [...CAT_FIXAS, ...est.categorias];
+  NOME_CAT = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.nome]));
+  if (!CATEGORIAS.some(c => c.id === est.cat)) est.cat = 'todos';
+}
 
 // Usados se o banco ainda não estiver pronto ou sem internet no primeiro acesso
 const SEMENTE = [
@@ -186,8 +197,10 @@ try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) 
 
 const est = {
   canais: [], cat: 'todos', sel: null, modo: null,
-  favs: lerLS('tvv_favs', []), usuario: null, dono: false, editando: null, logoForm: ''
+  favs: lerLS('tvv_favs', []), usuario: null, dono: false, editando: null, logoForm: '',
+  categorias: [], editCat: null
 };
+montarCategorias(lerLS('tvv_cats', null) || CAT_SEMENTE);
 
 /* ---------- utilidades ---------- */
 function lerLS(k, padrao){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : padrao; } catch(e){ return padrao; } }
@@ -195,7 +208,11 @@ function gravarLS(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } cat
 function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function iniciais(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
 function toast(t){ const el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove('on'), 2600); }
-function ehAoVivoPadrao(c){ return c.tipo === 'video' || c.categoria === 'tv' || c.categoria === 'louvor'; }
+function ehAoVivoPadrao(c){
+  if (c.tipo === 'video') return true;
+  const cat = est.categorias.find(x => x.id === c.categoria);
+  return cat ? cat.modo === 'aovivo' : false;
+}
 
 /* ---------- tema sol/lua ---------- */
 function aplicarTema(t){
@@ -245,6 +262,8 @@ async function carregarCanais(){
   est.canais = cache && cache.length ? cache : SEMENTE;
   desenharTudo();
   if (!sb) return;
+  const rc = await sb.from(TABELA_CAT).select('*').order('ordem').order('nome');
+  if (!rc.error && rc.data && rc.data.length) { montarCategorias(rc.data); gravarLS('tvv_cats', rc.data); }
   const { data, error } = await sb.from(TABELA).select('*').order('ordem').order('nome');
   if (error) { console.warn('Supabase:', error.message); return; }
   if (data && data.length) { est.canais = data; gravarLS('tvv_cache', data.filter(c => c.ativo)); }
@@ -274,9 +293,7 @@ function desenharLista(){
   if (!itens.length) {
     html += `<div class="vazio">${est.cat === 'favoritos' && !termo
       ? 'Nenhum favorito ainda. Abra um canal e toque na estrela ☆.'
-      : est.cat === 'louvor' && !termo
-        ? 'Nenhum canal de louvor cadastrado ainda. Inclua pela área administrativa (⚙️ → Administração).'
-        : 'Nenhum canal aqui.'}</div>`;
+        : 'Nenhum canal nesta categoria ainda. Inclua pela área administrativa (⚙️ → Administração).'}</div>`;
   }
   html += itens.map(c => `
     <button class="item ${est.sel && String(est.sel.id) === String(c.id) ? 'sel' : ''}" onclick="abrirCanal('${esc(c.id)}')">
@@ -291,7 +308,7 @@ function desenharPalco(){
   const c = est.sel;
   if (!c) {
     p.innerHTML = `<div class="tela"><div class="boas"><div><h3>Vidas TV</h3>Escolha um canal na lista para começar.</div></div></div>
-      <div class="dica">Cultos da Igreja Vidas, TV cristã, louvor e as transmissões das igrejas aliançadas, num só lugar.</div>`;
+      <div class="dica">Cultos, mensagens, estudos e louvor, num só lugar.</div>`;
     return;
   }
   const modo = est.modo;
@@ -347,7 +364,7 @@ document.addEventListener('keydown', e => {
    AJUSTES E ADMINISTRAÇÃO
    ============================================================ */
 function abrirGaveta(){ document.getElementById('fundo').classList.add('on'); document.getElementById('gaveta').classList.add('on'); desenharGaveta(); }
-function fecharGaveta(){ document.getElementById('fundo').classList.remove('on'); document.getElementById('gaveta').classList.remove('on'); est.editando = null; }
+function fecharGaveta(){ document.getElementById('fundo').classList.remove('on'); document.getElementById('gaveta').classList.remove('on'); est.editando = null; est.editCat = null; }
 
 function desenharGaveta(){
   const g = document.getElementById('gaveta');
@@ -373,17 +390,29 @@ function desenharGaveta(){
       <button class="bt" onclick="sair()">Sair</button>`;
   } else if (est.editando) {
     h += formularioHTML(est.editando);
+  } else if (est.editCat) {
+    h += formularioCatHTML(est.editCat);
   } else {
     const todos = [...est.canais].sort((a,b) => (a.ordem - b.ordem) || a.nome.localeCompare(b.nome));
-    h += `<div class="botoes" style="margin-bottom:12px">
+    const qtd = id => est.canais.filter(c => c.categoria === id).length;
+    h += `<div class="botoes" style="margin-bottom:6px"><button class="bt" onclick="sair()">Sair</button></div>
+      <h3>Categorias</h3>
+      <div class="botoes" style="margin-bottom:12px"><button class="bt prim" onclick="novaCategoria()">+ Nova categoria</button></div>
+      ${est.categorias.map(c => `
+        <div class="adm-item">
+          <div class="txt"><div><b>${esc(c.nome)}</b></div>
+            <div class="sub" style="color:var(--suave);font-size:15px">${qtd(c.id)} ${qtd(c.id) === 1 ? 'canal' : 'canais'} · abre em ${c.modo === 'aovivo' ? 'ao vivo' : 'gravados'} · ordem ${c.ordem}</div></div>
+          <button class="bt" onclick="editarCategoria('${esc(c.id)}')">Editar</button>
+        </div>`).join('')}
+      <h3>Canais</h3>
+      <div class="botoes" style="margin-bottom:12px">
         <button class="bt prim" onclick="novoCanal()">+ Incluir canal</button>
-        <button class="bt" onclick="sair()">Sair</button>
       </div>
       ${todos.map(c => `
         <div class="adm-item ${c.ativo ? '' : 'off'}">
           ${logoHTML(c)}
           <div class="txt"><div><b>${esc(c.nome)}</b>${c.ativo ? '' : ' · desativado'}</div>
-            <div class="sub" style="color:var(--suave);font-size:15px">${esc(NOME_CAT[c.categoria])} · ${c.tipo === 'canal' ? 'canal' : 'vídeo/live'} · ordem ${c.ordem}</div></div>
+            <div class="sub" style="color:var(--suave);font-size:15px">${esc(NOME_CAT[c.categoria] || 'sem categoria')} · ${c.tipo === 'canal' ? 'canal' : 'vídeo/live'} · ordem ${c.ordem}</div></div>
           <button class="bt" onclick="editarCanal('${esc(c.id)}')">Editar</button>
         </div>`).join('')}`;
   }
@@ -448,8 +477,67 @@ async function verificarSessao(){
     if (est.dono) await carregarCanais();
   }
 }
-function novoCanal(){ est.logoForm = ''; est.editando = { nome:'', categoria: est.cat && !['todos','favoritos'].includes(est.cat) ? est.cat : 'aliancadas', ordem:100, ativo:true }; desenharGaveta(); }
-function editarCanal(id){ est.editando = { ...est.canais.find(c => String(c.id) === String(id)) }; est.logoForm = est.editando.logo_url || ''; desenharGaveta(); }
+function novoCanal(){
+  if (!est.categorias.length) return toast('Crie uma categoria primeiro');
+  const cat = !['todos','favoritos'].includes(est.cat) ? est.cat : est.categorias[est.categorias.length - 1].id;
+  est.logoForm = ''; est.editando = { nome:'', categoria: cat, ordem:100, ativo:true }; desenharGaveta();
+}
+
+/* ---------- categorias (administração) ---------- */
+function formularioCatHTML(c){
+  const n = c.id ? est.canais.filter(x => x.categoria === c.id).length : 0;
+  return `
+    <div class="dica" style="margin-top:0"><b>${c.id ? 'Editar categoria' : 'Nova categoria'}</b></div>
+    <label class="campo"><span>Nome</span><input id="cNome" value="${esc(c.nome || '')}" placeholder="Ex.: Estudos bíblicos"></label>
+    <label class="campo"><span>Ao abrir um canal desta categoria, mostrar</span>
+      <select id="cModo">
+        <option value="gravados" ${c.modo !== 'aovivo' ? 'selected' : ''}>Cultos gravados (igrejas que transmitem só em alguns horários)</option>
+        <option value="aovivo" ${c.modo === 'aovivo' ? 'selected' : ''}>Ao vivo (canais que transmitem o tempo todo)</option>
+      </select></label>
+    <label class="campo"><span>Ordem no menu (menor aparece primeiro)</span><input id="cOrdem" type="number" value="${c.ordem ?? 100}"></label>
+    <div class="msg" id="cMsg"></div>
+    <div class="botoes">
+      <button class="bt prim" onclick="salvarCategoria()">Salvar</button>
+      <button class="bt" onclick="est.editCat=null;desenharGaveta()">Cancelar</button>
+      ${c.id ? `<button class="bt perigo" onclick="excluirCategoria()">Excluir</button>` : ''}
+    </div>
+    ${c.id && n ? `<div class="dica">Esta categoria tem ${n} ${n === 1 ? 'canal' : 'canais'}. Para excluí-la, mova esses canais para outra categoria antes.</div>` : ''}`;
+}
+function novaCategoria(){ est.editando = null; est.editCat = { nome:'', modo:'gravados', ordem:(est.categorias.length + 1) }; desenharGaveta(); }
+function editarCategoria(id){ est.editando = null; est.editCat = { ...est.categorias.find(c => c.id === id) }; desenharGaveta(); }
+function gerarIdCategoria(nome){
+  const base = nome.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'categoria';
+  let id = base, i = 2;
+  while (est.categorias.some(c => c.id === id) || ['todos','favoritos'].includes(id)) id = base + '-' + i++;
+  return id;
+}
+async function salvarCategoria(){
+  const nome = document.getElementById('cNome').value.trim();
+  if (!nome) return msg('cMsg', 'Informe o nome.', 'erro');
+  if (est.categorias.some(c => c.nome.toLowerCase() === nome.toLowerCase() && c.id !== est.editCat.id))
+    return msg('cMsg', 'Já existe uma categoria com esse nome.', 'erro');
+  const reg = { nome, modo: document.getElementById('cModo').value, ordem: parseInt(document.getElementById('cOrdem').value, 10) || 100 };
+  msg('cMsg', 'Salvando...', 'ok');
+  const id = est.editCat.id;
+  const { error } = id
+    ? await sb.from(TABELA_CAT).update(reg).eq('id', id)
+    : await sb.from(TABELA_CAT).insert({ id: gerarIdCategoria(nome), ...reg });
+  if (error) return msg('cMsg', 'Erro ao salvar: ' + error.message, 'erro');
+  est.editCat = null; await carregarCanais(); desenharGaveta(); toast('Categoria salva');
+}
+async function excluirCategoria(){
+  const c = est.editCat;
+  const n = est.canais.filter(x => x.categoria === c.id).length;
+  if (n) return msg('cMsg', `Não dá para excluir: há ${n} ${n === 1 ? 'canal' : 'canais'} nesta categoria. Mova-os para outra categoria antes.`, 'erro');
+  if (!confirm(`Excluir a categoria "${c.nome}"?`)) return;
+  const { error } = await sb.from(TABELA_CAT).delete().eq('id', c.id);
+  if (error) return msg('cMsg', 'Erro ao excluir: ' + error.message, 'erro');
+  if (est.cat === c.id) est.cat = 'todos';
+  est.categorias = est.categorias.filter(x => x.id !== c.id); montarCategorias(est.categorias); gravarLS('tvv_cats', est.categorias);
+  est.editCat = null; await carregarCanais(); desenharGaveta(); toast('Categoria excluída');
+}
+function editarCanal(id){ est.editCat = null; est.editando = { ...est.canais.find(c => String(c.id) === String(id)) }; est.logoForm = est.editando.logo_url || ''; desenharGaveta(); }
 
 /* ---------- logotipo: arrastar ou escolher arquivo ---------- */
 function soltarLogo(e){
