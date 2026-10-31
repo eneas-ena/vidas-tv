@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Vidas TV</title>
+<meta name="theme-color" content="#0F1B33">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Vidas TV">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" href="favicon-32.png" sizes="32x32">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --bg:#0B1426; --painel:#0F1B33; --painel2:#16264A; --linha:#24365E;
+  --texto:#EDE7D6; --suave:#A9B3C7; --ouro:#C9A227; --ouro2:#E2C25A;
+  --vermelho:#E0554D; --sombra:0 10px 30px rgba(0,0,0,.35);
+}
+:root[data-theme="light"]{
+  --bg:#F4EEDF; --painel:#FFFFFF; --painel2:#FBF7EC; --linha:#E2D8BF;
+  --texto:#0F1B33; --suave:#5B6478; --ouro:#A8851C; --ouro2:#8C6E12;
+  --vermelho:#C0392B; --sombra:0 8px 24px rgba(15,27,51,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--bg);color:var(--texto);font-family:"Cormorant Garamond",Georgia,serif;font-size:19px;
+  padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:3px solid var(--ouro);outline-offset:2px}
+
+/* Topo */
+.topo{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--painel);border-bottom:1px solid var(--linha)}
+.marca{font-family:Cinzel,serif;font-weight:700;font-size:26px;color:var(--ouro);letter-spacing:.5px;white-space:nowrap}
+.marca span{color:var(--texto);font-weight:500}
+.busca{flex:1;max-width:420px;margin-left:auto;display:flex;align-items:center;gap:8px;background:var(--painel2);border:1px solid var(--linha);border-radius:999px;padding:6px 14px}
+.busca input{flex:1;border:0;background:transparent;outline:0;min-width:0}
+.icone{width:42px;height:42px;border-radius:50%;border:1px solid var(--linha);background:var(--painel2);display:grid;place-items:center;font-size:19px;flex:none}
+.versao{font-family:Cinzel,serif;font-size:13px;color:var(--suave);border:1px solid var(--linha);border-radius:999px;padding:3px 10px;white-space:nowrap}
+
+/* Aviso de versão nova */
+.aviso{display:none;align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;padding:10px 16px;background:var(--ouro);color:#0F1B33;font-weight:700}
+.aviso.on{display:flex}
+.aviso button{background:#0F1B33;color:#fff;border:0;border-radius:999px;padding:6px 16px;font-weight:700}
+
+/* Grade principal */
+.grade{display:grid;grid-template-columns:230px 340px 1fr;height:calc(100vh - 67px - env(safe-area-inset-top) - env(safe-area-inset-bottom))}
+.cats{background:var(--painel);border-right:1px solid var(--linha);overflow:auto;padding:10px}
+.cat{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;border:0;background:transparent;padding:11px 12px;border-radius:10px;font-size:19px;font-weight:600;color:var(--suave)}
+.cat b{font-family:Cinzel,serif;font-size:13px;font-weight:500}
+.cat:hover{background:var(--painel2)}
+.cat.ativa{background:var(--painel2);color:var(--texto);box-shadow:inset 3px 0 0 var(--ouro)}
+.lista{overflow:auto;padding:12px;border-right:1px solid var(--linha)}
+.lista h2{font-family:Cinzel,serif;font-size:20px;margin:4px 6px 12px;display:flex;justify-content:space-between;align-items:baseline}
+.lista h2 small{font-family:"Cormorant Garamond",serif;font-size:16px;color:var(--suave);font-weight:500}
+.item{display:flex;gap:12px;align-items:center;width:100%;text-align:left;border:1px solid transparent;background:transparent;border-radius:12px;padding:10px;margin-bottom:6px}
+.item:hover{background:var(--painel2)}
+.item.sel{background:var(--painel2);border-color:var(--ouro)}
+.logo{width:52px;height:52px;border-radius:12px;flex:none;display:grid;place-items:center;font-family:Cinzel,serif;font-weight:700;font-size:18px;color:#0F1B33;background:var(--ouro);overflow:hidden}
+.logo img{width:100%;height:100%;object-fit:cover}
+.item .nome{font-weight:700;font-size:20px;line-height:1.1}
+.item .sub{color:var(--suave);font-size:16px}
+.estrela{margin-left:auto;color:var(--ouro);font-size:18px}
+.vazio{color:var(--suave);padding:18px 8px;line-height:1.4}
+
+/* Player */
+.palco{overflow:auto;padding:16px 18px}
+.tela{position:relative;width:100%;aspect-ratio:16/9;background:#000;border-radius:14px;overflow:hidden;box-shadow:var(--sombra)}
+.tela iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.tela .boas{position:absolute;inset:0;display:grid;place-items:center;text-align:center;color:#C9D1E3;padding:30px;background:radial-gradient(circle at 50% 40%,#1B2D57,#070D1A)}
+.tela .boas h3{font-family:Cinzel,serif;color:#E2C25A;font-size:26px;margin:0 0 8px}
+.info{margin-top:16px}
+.info .linha1{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.info h1{font-family:Cinzel,serif;font-size:28px;margin:0}
+.selo{font-family:Cinzel,serif;font-size:12px;letter-spacing:.5px;padding:3px 10px;border-radius:999px;border:1px solid var(--linha);color:var(--suave)}
+.selo.vivo{color:#fff;background:var(--vermelho);border-color:var(--vermelho)}
+.info p{color:var(--suave);margin:8px 0 14px}
+.botoes{display:flex;gap:10px;flex-wrap:wrap}
+.bt{border:1px solid var(--linha);background:var(--painel2);border-radius:999px;padding:8px 18px;font-weight:700;color:var(--texto)}
+a.bt{text-decoration:none;display:inline-block}
+.bt.on{background:var(--ouro);color:#0F1B33;border-color:var(--ouro)}
+.bt.prim{background:var(--ouro);color:#0F1B33;border-color:var(--ouro)}
+.bt.perigo{color:var(--vermelho);border-color:var(--vermelho);background:transparent}
+.dica{font-size:16px;color:var(--suave);margin-top:12px;line-height:1.4}
+
+/* Painel lateral (ajustes / administração) */
+.fundo{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:20}
+.fundo.on{display:block}
+.gaveta{position:fixed;top:0;right:0;bottom:0;width:min(520px,100%);background:var(--painel);border-left:1px solid var(--linha);z-index:21;transform:translateX(105%);transition:transform .25s;overflow:auto;padding:18px 20px calc(30px + env(safe-area-inset-bottom))}
+.gaveta.on{transform:none}
+.gaveta h2{font-family:Cinzel,serif;color:var(--ouro);margin:0 0 4px;display:flex;justify-content:space-between;align-items:center}
+.gaveta h3{font-family:Cinzel,serif;font-size:17px;margin:22px 0 10px;border-bottom:1px solid var(--linha);padding-bottom:6px}
+.campo{display:block;margin-bottom:12px}
+.campo span{display:block;font-size:16px;color:var(--suave);margin-bottom:4px;font-weight:600}
+.campo input,.campo select,.campo textarea{width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--linha);background:var(--painel2)}
+.campo textarea{min-height:64px;resize:vertical}
+.adm-item{display:flex;gap:10px;align-items:center;padding:8px;border:1px solid var(--linha);border-radius:12px;margin-bottom:8px}
+.adm-item .logo{width:40px;height:40px;font-size:14px}
+.adm-item .txt{flex:1;min-width:0}
+.adm-item .txt div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.adm-item.off{opacity:.5}
+.msg{font-size:16px;padding:8px 12px;border-radius:10px;margin:8px 0;display:none}
+.msg.on{display:block}
+.msg.ok{background:rgba(70,160,90,.15);color:#3E9A5A}
+.msg.erro{background:rgba(224,85,77,.15);color:var(--vermelho)}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ouro);color:#0F1B33;padding:10px 20px;border-radius:999px;font-weight:700;z-index:30;display:none;box-shadow:var(--sombra)}
+.toast.on{display:block}
+
+/* Telas menores */
+@media (max-width:1100px){ .grade{grid-template-columns:200px 290px 1fr} }
+@media (max-width:860px){
+  .grade{display:block;height:auto}
+  .cats{display:flex;gap:6px;overflow-x:auto;border-right:0;border-bottom:1px solid var(--linha);padding:8px 12px}
+  .cat{width:auto;white-space:nowrap;gap:8px;padding:8px 14px;background:var(--painel2);border-radius:999px}
+  .cat.ativa{box-shadow:inset 0 -3px 0 var(--ouro)}
+  .palco{padding:12px 16px}
+  .lista{border-right:0;padding:12px 16px}
+  .busca{max-width:none}
+  .marca{font-size:21px}
+  .versao{display:none}
+}
+@media (max-width:520px){ .topo{flex-wrap:wrap} .busca{order:5;flex-basis:100%} }
+</style>
+</head>
+<body>
+
+<div class="aviso" id="aviso">Há uma versão nova do Vidas TV. <button onclick="atualizarApp()">Atualizar agora</button></div>
+
+<header class="topo">
+  <div class="marca">Vidas <span>TV</span></div>
+  <label class="busca"><span>🔍</span><input id="busca" type="search" placeholder="Buscar canal" oninput="desenharLista()"></label>
+  <span class="versao" id="versaoTopo"></span>
+  <button class="icone" id="btTema" onclick="alternarTema()" title="Modo claro / escuro" aria-label="Modo claro ou escuro">☀️</button>
+  <button class="icone" onclick="abrirGaveta()" title="Ajustes" aria-label="Ajustes">⚙️</button>
+</header>
+
+<main class="grade">
+  <nav class="cats" id="cats"></nav>
+  <section class="lista" id="lista"></section>
+  <section class="palco" id="palco"></section>
+</main>
+
+<div class="fundo" id="fundo" onclick="fecharGaveta()"></div>
+<aside class="gaveta" id="gaveta" aria-label="Ajustes"></aside>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   VIDAS TV
+   ============================================================ */
+const VERSAO = '1.0.0';
+const SUPABASE_URL = 'https://ghjbljypxksubmcsvaig.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_qXCYqg1WdmelY9D1mptZXg_U8NdoKby';
+const TABELA = 'tvv_canais';
+
+const CATEGORIAS = [
+  { id:'todos',      nome:'Todos os canais' },
+  { id:'favoritos',  nome:'Favoritos ★' },
+  { id:'vidas',      nome:'Igreja Vidas' },
+  { id:'tv',         nome:'TV cristã 24h' },
+  { id:'louvor',     nome:'Louvor 24h' },
+  { id:'aliancadas', nome:'Igrejas aliançadas' }
+];
+const NOME_CAT = Object.fromEntries(CATEGORIAS.map(c => [c.id, c.nome]));
+
+// Usados se o banco ainda não estiver pronto ou sem internet no primeiro acesso
+const SEMENTE = [
+  { id:'s1', nome:'Igreja Vidas', descricao:'Cultos, mensagens e estudos da Igreja Vidas', categoria:'vidas', tipo:'canal', youtube_id:'UCCgfghL9MF6qpBi4rndjkxA', logo_url:'', ordem:1, ativo:true },
+  { id:'s2', nome:'Rede Super', descricao:'Emissora cristã da Igreja Batista da Lagoinha', categoria:'tv', tipo:'canal', youtube_id:'UCFl00VTEDEA0cHCoMQ7CuZg', logo_url:'', ordem:10, ativo:true }
+];
+
+let sb = null;
+try { sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY); } catch(e) { sb = null; }
+
+const est = {
+  canais: [], cat: 'todos', sel: null, modo: null,
+  favs: lerLS('tvv_favs', []), usuario: null, dono: false, editando: null
+};
+
+/* ---------- utilidades ---------- */
+function lerLS(k, padrao){ try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : padrao; } catch(e){ return padrao; } }
+function gravarLS(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function esc(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function iniciais(n){ return String(n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(p=>p[0]).join('').toUpperCase(); }
+function toast(t){ const el = document.getElementById('toast'); el.textContent = t; el.classList.add('on'); clearTimeout(toast._t); toast._t = setTimeout(()=>el.classList.remove('on'), 2600); }
+function ehAoVivoPadrao(c){ return c.tipo === 'video' || c.categoria === 'tv' || c.categoria === 'louvor'; }
+
+/* ---------- tema sol/lua ---------- */
+function aplicarTema(t){
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('btTema').textContent = t === 'dark' ? '☀️' : '🌙';
+  document.querySelector('meta[name=theme-color]').setAttribute('content', t === 'dark' ? '#0F1B33' : '#F4EEDF');
+}
+function alternarTema(){
+  const novo = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+  gravarLS('tvv_tema', novo); aplicarTema(novo);
+}
+aplicarTema(lerLS('tvv_tema', null) || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
+document.getElementById('versaoTopo').textContent = 'v' + VERSAO;
+
+/* ---------- YouTube ---------- */
+function urlEmbed(c, modo){
+  const p = 'autoplay=1&rel=0&playsinline=1&modestbranding=1';
+  if (c.tipo === 'video') return `https://www.youtube.com/embed/${c.youtube_id}?${p}`;
+  if (modo === 'aovivo') return `https://www.youtube.com/embed/live_stream?channel=${c.youtube_id}&${p}`;
+  return `https://www.youtube.com/embed/videoseries?list=UU${c.youtube_id.slice(2)}&${p}`;
+}
+function urlYouTube(c, modo){
+  if (c.tipo === 'video') return `https://www.youtube.com/watch?v=${c.youtube_id}`;
+  return `https://www.youtube.com/channel/${c.youtube_id}/${modo === 'aovivo' ? 'live' : 'videos'}`;
+}
+// Aceita: ID do canal (UC...), endereço com /channel/UC..., endereço de vídeo/live ou ID de vídeo
+function interpretar(txt){
+  const t = String(txt || '').trim();
+  if (!t) return { erro:'Cole o endereço ou o ID do canal.' };
+  let m = t.match(/(UC[\w-]{22})/);
+  if (m) return { tipo:'canal', id:m[1] };
+  m = t.match(/(?:[?&]v=|youtu\.be\/|\/live\/|\/embed\/|\/shorts\/)([\w-]{11})/);
+  if (m) return { tipo:'video', id:m[1] };
+  if (/^[\w-]{11}$/.test(t)) return { tipo:'video', id:t };
+  if (t.includes('@')) return { erro:'Endereço com @ (ex.: youtube.com/@Igreja) não traz o ID. No YouTube, abra o canal → Sobre / "mais" → Compartilhar canal → Copiar ID do canal, e cole aqui.' };
+  return { erro:'Não reconheci esse endereço. Cole o ID do canal (começa com UC) ou o link de um vídeo/live.' };
+}
+function logoHTML(c){
+  if (c.logo_url) return `<div class="logo"><img src="${esc(c.logo_url)}" alt="" loading="lazy" onerror="this.parentNode.textContent='${esc(iniciais(c.nome))}'"></div>`;
+  if (c.tipo === 'video') return `<div class="logo"><img src="https://i.ytimg.com/vi/${esc(c.youtube_id)}/mqdefault.jpg" alt="" loading="lazy"></div>`;
+  return `<div class="logo">${esc(iniciais(c.nome))}</div>`;
+}
+
+/* ---------- dados ---------- */
+async function carregarCanais(){
+  const cache = lerLS('tvv_cache', null);
+  est.canais = cache && cache.length ? cache : SEMENTE;
+  desenharTudo();
+  if (!sb) return;
+  const { data, error } = await sb.from(TABELA).select('*').order('ordem').order('nome');
+  if (error) { console.warn('Supabase:', error.message); return; }
+  if (data && data.length) { est.canais = data; gravarLS('tvv_cache', data.filter(c => c.ativo)); }
+  desenharTudo();
+}
+function visiveis(){ return est.canais.filter(c => c.ativo !== false); }
+function daCategoria(cat){
+  const v = visiveis();
+  if (cat === 'todos') return v;
+  if (cat === 'favoritos') return v.filter(c => est.favs.includes(String(c.id)));
+  return v.filter(c => c.categoria === cat);
+}
+
+/* ---------- desenho ---------- */
+function desenharTudo(){ desenharCats(); desenharLista(); desenharPalco(); }
+function desenharCats(){
+  document.getElementById('cats').innerHTML = CATEGORIAS.map(c =>
+    `<button class="cat ${est.cat === c.id ? 'ativa' : ''}" onclick="escolherCat('${c.id}')">${esc(c.nome)} <b>${daCategoria(c.id).length}</b></button>`
+  ).join('');
+}
+function desenharLista(){
+  const termo = document.getElementById('busca').value.trim().toLowerCase();
+  let itens = daCategoria(est.cat);
+  if (termo) itens = visiveis().filter(c => (c.nome + ' ' + (c.descricao||'')).toLowerCase().includes(termo));
+  const titulo = termo ? 'Busca' : NOME_CAT[est.cat];
+  let html = `<h2>${esc(titulo)} <small>${itens.length} ${itens.length === 1 ? 'canal' : 'canais'}</small></h2>`;
+  if (!itens.length) {
+    html += `<div class="vazio">${est.cat === 'favoritos' && !termo
+      ? 'Nenhum favorito ainda. Abra um canal e toque na estrela ☆.'
+      : est.cat === 'louvor' && !termo
+        ? 'Nenhum canal de louvor cadastrado ainda. Inclua pela área administrativa (⚙️ → Administração).'
+        : 'Nenhum canal aqui.'}</div>`;
+  }
+  html += itens.map(c => `
+    <button class="item ${est.sel && String(est.sel.id) === String(c.id) ? 'sel' : ''}" onclick="abrirCanal('${esc(c.id)}')">
+      ${logoHTML(c)}
+      <div><div class="nome">${esc(c.nome)}</div><div class="sub">${esc(NOME_CAT[c.categoria] || '')}</div></div>
+      ${est.favs.includes(String(c.id)) ? '<span class="estrela">★</span>' : ''}
+    </button>`).join('');
+  document.getElementById('lista').innerHTML = html;
+}
+function desenharPalco(){
+  const p = document.getElementById('palco');
+  const c = est.sel;
+  if (!c) {
+    p.innerHTML = `<div class="tela"><div class="boas"><div><h3>Vidas TV</h3>Escolha um canal na lista para começar.</div></div></div>
+      <div class="dica">Cultos da Igreja Vidas, TV cristã, louvor e as transmissões das igrejas aliançadas, num só lugar.</div>`;
+    return;
+  }
+  const modo = est.modo;
+  const fav = est.favs.includes(String(c.id));
+  const ehCanal = c.tipo === 'canal';
+  p.innerHTML = `
+    <div class="tela"><iframe src="${urlEmbed(c, modo)}" title="${esc(c.nome)}" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin"></iframe></div>
+    <div class="info">
+      <div class="linha1">
+        <span class="selo ${modo === 'aovivo' ? 'vivo' : ''}">${modo === 'aovivo' ? '● AO VIVO' : 'GRAVADOS'}</span>
+        <h1>${esc(c.nome)}</h1>
+        <button class="icone" onclick="alternarFav()" title="Favorito" aria-label="Favorito">${fav ? '★' : '☆'}</button>
+      </div>
+      <p>${esc(c.descricao || NOME_CAT[c.categoria] || '')}</p>
+      <div class="botoes">
+        ${ehCanal ? `<button class="bt ${modo === 'aovivo' ? 'on' : ''}" onclick="mudarModo('aovivo')">Ao vivo agora</button>
+                     <button class="bt ${modo === 'gravados' ? 'on' : ''}" onclick="mudarModo('gravados')">Cultos gravados</button>` : ''}
+        <a class="bt" style="text-decoration:none" href="${urlYouTube(c, modo)}" target="_blank" rel="noopener">Abrir no YouTube ↗</a>
+      </div>
+      <div class="dica">${ehCanal && modo === 'aovivo'
+        ? 'Se aparecer que o vídeo não está disponível, o canal não está transmitindo agora. Toque em "Cultos gravados" para ver os últimos vídeos.'
+        : ehCanal ? 'Mostra os vídeos mais recentes do canal. Use as setas do player do YouTube (≡) para escolher outro culto.' : ''}</div>
+    </div>`;
+}
+
+/* ---------- ações ---------- */
+function escolherCat(id){ est.cat = id; document.getElementById('busca').value = ''; desenharCats(); desenharLista(); }
+function abrirCanal(id){
+  const c = est.canais.find(x => String(x.id) === String(id));
+  if (!c) return;
+  est.sel = c; est.modo = ehAoVivoPadrao(c) ? 'aovivo' : 'gravados';
+  desenharLista(); desenharPalco();
+  if (innerWidth <= 860) document.getElementById('palco').scrollIntoView({ behavior:'smooth' });
+}
+function mudarModo(m){ est.modo = m; desenharPalco(); }
+function alternarFav(){
+  const id = String(est.sel.id);
+  est.favs = est.favs.includes(id) ? est.favs.filter(x => x !== id) : [...est.favs, id];
+  gravarLS('tvv_favs', est.favs); desenharTudo();
+}
+
+/* Navegação com setas (controle remoto da TV / teclado) */
+document.addEventListener('keydown', e => {
+  if (!['ArrowUp','ArrowDown'].includes(e.key)) return;
+  const a = document.activeElement;
+  if (!a || !a.classList || !(a.classList.contains('item') || a.classList.contains('cat'))) return;
+  const grupo = [...a.parentNode.querySelectorAll(a.classList.contains('item') ? '.item' : '.cat')];
+  const i = grupo.indexOf(a) + (e.key === 'ArrowDown' ? 1 : -1);
+  if (grupo[i]) { grupo[i].focus(); e.preventDefault(); }
+});
+
+/* ============================================================
+   AJUSTES E ADMINISTRAÇÃO
+   ============================================================ */
+function abrirGaveta(){ document.getElementById('fundo').classList.add('on'); document.getElementById('gaveta').classList.add('on'); desenharGaveta(); }
+function fecharGaveta(){ document.getElementById('fundo').classList.remove('on'); document.getElementById('gaveta').classList.remove('on'); est.editando = null; }
+
+function desenharGaveta(){
+  const g = document.getElementById('gaveta');
+  let h = `<h2>Ajustes <button class="icone" onclick="fecharGaveta()" aria-label="Fechar">✕</button></h2>
+    <div class="dica" style="margin-top:0">Vidas TV · versão <b>${VERSAO}</b></div>
+    <h3>Aplicativo</h3>
+    <div class="botoes">
+      <button class="bt prim" onclick="atualizarApp()">⟳ Atualizar app</button>
+      <button class="bt" onclick="alternarTema()">☀️ / 🌙 Tema</button>
+    </div>
+    <h3>Administração</h3>`;
+
+  if (!sb) {
+    h += `<div class="msg erro on">Não consegui conectar ao banco. Verifique a internet.</div>`;
+  } else if (!est.usuario) {
+    h += `<div class="dica" style="margin-top:0">Entre com o seu usuário para incluir e editar canais.</div>
+      <label class="campo"><span>E-mail</span><input id="lgEmail" type="email" autocomplete="username"></label>
+      <label class="campo"><span>Senha</span><input id="lgSenha" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')entrar()"></label>
+      <div class="msg" id="lgMsg"></div>
+      <button class="bt prim" onclick="entrar()">Entrar</button>`;
+  } else if (!est.dono) {
+    h += `<div class="msg erro on">Este usuário (${esc(est.usuario.email)}) não é o administrador.</div>
+      <button class="bt" onclick="sair()">Sair</button>`;
+  } else if (est.editando) {
+    h += formularioHTML(est.editando);
+  } else {
+    const todos = [...est.canais].sort((a,b) => (a.ordem - b.ordem) || a.nome.localeCompare(b.nome));
+    h += `<div class="botoes" style="margin-bottom:12px">
+        <button class="bt prim" onclick="novoCanal()">+ Incluir canal</button>
+        <button class="bt" onclick="sair()">Sair</button>
+      </div>
+      ${todos.map(c => `
+        <div class="adm-item ${c.ativo ? '' : 'off'}">
+          ${logoHTML(c)}
+          <div class="txt"><div><b>${esc(c.nome)}</b>${c.ativo ? '' : ' · desativado'}</div>
+            <div class="sub" style="color:var(--suave);font-size:15px">${esc(NOME_CAT[c.categoria])} · ${c.tipo === 'canal' ? 'canal' : 'vídeo/live'} · ordem ${c.ordem}</div></div>
+          <button class="bt" onclick="editarCanal('${esc(c.id)}')">Editar</button>
+        </div>`).join('')}`;
+  }
+  g.innerHTML = h;
+}
+
+function formularioHTML(c){
+  const opcoes = CATEGORIAS.filter(x => !['todos','favoritos'].includes(x.id))
+    .map(x => `<option value="${x.id}" ${c.categoria === x.id ? 'selected' : ''}>${esc(x.nome)}</option>`).join('');
+  const endereco = c.youtube_id ? (c.tipo === 'canal' ? c.youtube_id : 'https://www.youtube.com/watch?v=' + c.youtube_id) : '';
+  return `
+    <label class="campo"><span>Nome</span><input id="fNome" value="${esc(c.nome || '')}"></label>
+    <label class="campo"><span>Categoria</span><select id="fCat">${opcoes}</select></label>
+    <label class="campo"><span>Canal ou vídeo do YouTube</span><input id="fYT" value="${esc(endereco)}" placeholder="ID do canal (UC...) ou link de um vídeo/live"></label>
+    <div class="dica" style="margin:-4px 0 12px">
+      <b>Igreja (cultos ao vivo e gravados):</b> use o ID do canal. No YouTube: abrir o canal → toque em "mais" na descrição → <i>Compartilhar canal</i> → <i>Copiar ID do canal</i>.<br>
+      <b>Rádio de louvor 24h:</b> cole o link da própria live (youtube.com/watch?v=...).
+    </div>
+    <label class="campo"><span>Descrição (opcional)</span><textarea id="fDesc">${esc(c.descricao || '')}</textarea></label>
+    <label class="campo"><span>Endereço de um logotipo (opcional)</span><input id="fLogo" value="${esc(c.logo_url || '')}" placeholder="https://..."></label>
+    <label class="campo"><span>Ordem na lista (menor aparece primeiro)</span><input id="fOrdem" type="number" value="${c.ordem ?? 100}"></label>
+    <label class="campo" style="display:flex;gap:10px;align-items:center"><input id="fAtivo" type="checkbox" style="width:auto" ${c.ativo !== false ? 'checked' : ''}> Ativo (aparece no app)</label>
+    <div class="msg" id="fMsg"></div>
+    <div class="botoes">
+      <button class="bt prim" onclick="salvarCanal()">Salvar</button>
+      <button class="bt" onclick="est.editando=null;desenharGaveta()">Cancelar</button>
+      ${c.id ? `<button class="bt perigo" onclick="excluirCanal()">Excluir</button>` : ''}
+    </div>`;
+}
+function msg(id, texto, tipo){ const el = document.getElementById(id); if (!el) return; el.textContent = texto; el.className = 'msg on ' + tipo; }
+
+async function entrar(){
+  const email = document.getElementById('lgEmail').value.trim();
+  const senha = document.getElementById('lgSenha').value;
+  if (!email || !senha) return msg('lgMsg', 'Preencha e-mail e senha.', 'erro');
+  msg('lgMsg', 'Entrando...', 'ok');
+  const { error } = await sb.auth.signInWithPassword({ email, password: senha });
+  if (error) return msg('lgMsg', 'Não foi possível entrar: ' + error.message, 'erro');
+  await verificarSessao(); desenharGaveta();
+}
+async function sair(){ await sb.auth.signOut(); est.usuario = null; est.dono = false; await carregarCanais(); desenharGaveta(); }
+async function verificarSessao(){
+  if (!sb) return;
+  const { data } = await sb.auth.getSession();
+  est.usuario = data && data.session ? data.session.user : null;
+  est.dono = false;
+  if (est.usuario) {
+    const r = await sb.rpc('eh_dono');
+    est.dono = r.data === true;
+    if (est.dono) await carregarCanais();
+  }
+}
+function novoCanal(){ est.editando = { nome:'', categoria: est.cat && !['todos','favoritos'].includes(est.cat) ? est.cat : 'aliancadas', ordem:100, ativo:true }; desenharGaveta(); }
+function editarCanal(id){ est.editando = { ...est.canais.find(c => String(c.id) === String(id)) }; desenharGaveta(); }
+
+async function salvarCanal(){
+  const nome = document.getElementById('fNome').value.trim();
+  if (!nome) return msg('fMsg', 'Informe o nome.', 'erro');
+  const yt = interpretar(document.getElementById('fYT').value);
+  if (yt.erro) return msg('fMsg', yt.erro, 'erro');
+  const reg = {
+    nome,
+    categoria: document.getElementById('fCat').value,
+    tipo: yt.tipo, youtube_id: yt.id,
+    descricao: document.getElementById('fDesc').value.trim(),
+    logo_url: document.getElementById('fLogo').value.trim(),
+    ordem: parseInt(document.getElementById('fOrdem').value, 10) || 100,
+    ativo: document.getElementById('fAtivo').checked
+  };
+  msg('fMsg', 'Salvando...', 'ok');
+  const id = est.editando.id;
+  const q = id && !String(id).startsWith('s') ? sb.from(TABELA).update(reg).eq('id', id) : sb.from(TABELA).insert(reg);
+  const { error } = await q;
+  if (error) return msg('fMsg', 'Erro ao salvar: ' + error.message, 'erro');
+  est.editando = null; await carregarCanais(); desenharGaveta(); toast('Canal salvo');
+}
+async function excluirCanal(){
+  const c = est.editando;
+  if (!confirm(`Excluir o canal "${c.nome}"? Se quiser apenas escondê-lo, desmarque "Ativo".`)) return;
+  const { error } = await sb.from(TABELA).delete().eq('id', c.id);
+  if (error) return msg('fMsg', 'Erro ao excluir: ' + error.message, 'erro');
+  if (est.sel && String(est.sel.id) === String(c.id)) est.sel = null;
+  est.editando = null; await carregarCanais(); desenharGaveta(); toast('Canal excluído');
+}
+
+/* ============================================================
+   ATUALIZAÇÃO DO APP
+   ============================================================ */
+async function atualizarApp(){
+  toast('Atualizando...');
+  try {
+    if ('serviceWorker' in navigator) for (const r of await navigator.serviceWorker.getRegistrations()) await r.unregister();
+    if (window.caches) for (const k of await caches.keys()) await caches.delete(k);
+  } catch(e) {}
+  location.replace(location.pathname + '?v=' + Date.now());
+}
+async function buscarVersaoNova(){
+  try {
+    const r = await fetch('index.html?t=' + Date.now(), { cache:'no-store' });
+    if (!r.ok) return;
+    const m = (await r.text()).match(/const VERSAO\s*=\s*'([^']+)'/);
+    if (m && m[1] !== VERSAO) document.getElementById('aviso').classList.add('on');
+  } catch(e) {}
+}
+
+/* ============================================================
+   INÍCIO
+   ============================================================ */
+if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(()=>{});
+carregarCanais();
+verificarSessao();
+buscarVersaoNova();
+setInterval(buscarVersaoNova, 30 * 60 * 1000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) buscarVersaoNova(); });
+</script>
+</body>
+</html>
